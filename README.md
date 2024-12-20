@@ -429,9 +429,9 @@ To ensure that the Airflow pipeline operated correctly, the following steps were
 6. **Running the DAG:**
    Triggered the DAG from the UI and monitored the execution of each task.
    
-
+   ![img](https://github.com/nnannaeze/Traffic-Data-Consolidation-with-Apache-Airflow/blob/main/Untitled%20design%20(1).png)
    
-   ![img](b5.PNG)
+   
 
 
 ## Results
@@ -441,7 +441,7 @@ By running the `ETL_toll_data.py` DAG script, I achieved the following:
 - Successfully extracted and transformed data from multiple formats.
 - Consolidated the data into a standardized structure.
 - Loaded the transformed data into MariaDB for further analysis.
+![img](b5.PNG)
 
-Would you like me to further enhance this section with code snippets or diagrams?
 
 
