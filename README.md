@@ -439,6 +439,7 @@ To ensure that the Airflow pipeline operated correctly, the following steps were
 By running the `ETL_toll_data.py` DAG script, I achieved the following:
 
 - Successfully extracted and transformed data from multiple formats.
+  ![img](b7.PNG)
 - Consolidated the data into a standardized structure.
 - Loaded the transformed data into MariaDB for further analysis.
 ![img](b5.PNG)
