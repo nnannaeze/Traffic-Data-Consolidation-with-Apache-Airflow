@@ -443,5 +443,7 @@ By running the `ETL_toll_data.py` DAG script, I achieved the following:
 - Loaded the transformed data into MariaDB for further analysis.
 ![img](b5.PNG)
 
+![img](b6.PNG)
+
 
 
