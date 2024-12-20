@@ -114,4 +114,236 @@ graph TD
     C --> D[MariaDB Staging Area]
 ```
 
+## Step-by-Step Implementation
+
+## File Setup
+
+
+I began by creating a staging folder and granting it access so it can temporarily hold intermediate and final outputs during the ETL process. this was achieved by the following command 
+```bash
+sudo mkdir -p /root/airflow/dags/python_etl/staging
+sudo chmod -R 777 /root/airflow/dags/python_etl
+```
+
+I also created the main script for the ETL process, named `ETL_toll_pyhton_data.py`, placed in the `/root` directory usibg the command 
+```bash
+touch ETL_toll_pyhton_data.py
+```
+This script serves as the backbone of the pipeline, orchestrating tasks for extracting, transforming, and loading the data. 
+
+## Data Extraction
+
+### Overview
+The extraction process involved handling three different file formats: CSV, TSV, and fixed-width files. Each format required a unique approach to read and extract relevant fields.
+Here i needed to see the shape of the downloaded data, study it and deduced the fact that the data in all the tables have no Headers and are of 4 categories. This gave me an insgight about the characteristics of the data and the best apprach at extracting it.
+
+### Implementation Details
+
+1. **Downloading the Dataset**
+   I created a Python function, `download_dataset`, to fetch the dataset from the given URL and save it to the staging directory.
+   
+   - **Source:** https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBM-DB0250EN-SkillsNetwork/labs/Final%20Assignment/tolldata.tgz
+   - **Destination:** `/root/airflow/dags/python_etl/staging`
+
+2. **Untarring the Dataset**
+   The `untar_dataset` function was implemented to untar the downloaded dataset into the staging directory, ensuring all files were available for subsequent steps.
+
+3. **Extracting Data**
+   - **From CSV:** Using the `extract_data_from_csv` function, I extracted fields like Rowid, Timestamp, Anonymized Vehicle number, and Vehicle type from `vehicle-data.csv`. These were saved to `csv_data.csv`.
+   - **From TSV:** With the `extract_data_from_tsv` function, I extracted Number of axles, Tollplaza id, and Tollplaza code from `tollplaza-data.tsv`. These were saved to `tsv_data.csv`.
+   - **From Fixed-Width File:** The `extract_data_from_fixed_width` function handled `payment-data.txt`, extracting Type of Payment code and Vehicle Code into `fixed_width_data.csv`.
+
+## Data Transformation
+
+### Consolidation
+Using the `consolidate_data` function, I combined the extracted data into a single file, `extracted_data.csv`. The consolidated file contained fields in the following order:
+
+- Rowid
+- Timestamp
+- Anonymized Vehicle number
+- Vehicle type
+- Number of axles
+- Tollplaza id
+- Tollplaza code
+- Type of Payment code
+- Vehicle Code
+
+### Transformation
+The `transform_data` function transformed the Vehicle type field to uppercase for uniformity and saved the result as `transformed_data.csv` in the staging directory.
+
+## Data Loading
+
+To complete the pipeline, I implemented a `load_data_to_mariadb` function to load the final `transformed_data.csv` into the MariaDB database. The database, `traffic_db`, had a table structure defined to align with the fields in the consolidated data.
+
+## DAG Script
+
+The entire ETL process was managed through an Apache Airflow DAG. Each Python function was assigned as a task in the DAG. The pipeline ensured that each task executed in the proper sequence:
+
+1. **Task 1:** Download dataset
+2. **Task 2:** Untar dataset
+3. **Task 3:** Extract data from CSV, TSV, and fixed-width files
+4. **Task 4:** Consolidate data
+5. **Task 5:** Transform data
+6. **Task 6:** Load data to MariaDB
+
+Dependencies were explicitly set in the DAG to enforce the correct execution order, ensuring data consistency and integrity throughout the pipeline.
+
+### ETL Airflow DAG Script
+
+The DAG script for this project automates the extraction, transformation, and loading of traffic data from multiple formats into a consolidated dataset. Below is the detailed script:
+
+```python
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from datetime import datetime
+import os
+import pandas as pd
+import tarfile
+import mysql.connector
+
+# Define the paths
+source_url = "https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBM-DB0250EN-SkillsNetwork/labs/Final%20Assignment/tolldata.tgz"
+staging_dir = "/root/airflow/dags/python_etl/staging"
+os.makedirs(staging_dir, exist_ok=True)
+
+# Define default arguments
+default_args = {
+    'owner': 'airflow',
+    'start_date': datetime(2024, 12, 19),
+}
+
+# DAG definition
+with DAG(
+    dag_id='ETL_toll_data_pipeline',
+    default_args=default_args,
+    schedule_interval=None,
+    catchup=False,
+) as dag:
+
+    def download_dataset():
+        import requests
+        response = requests.get(source_url)
+        with open(f"{staging_dir}/tolldata.tgz", "wb") as file:
+            file.write(response.content)
+
+    def untar_dataset():
+        with tarfile.open(f"{staging_dir}/tolldata.tgz") as tar:
+            tar.extractall(path=staging_dir)
+
+    def extract_data_from_csv():
+        df = pd.read_csv(f"{staging_dir}/vehicle-data.csv")
+        df[['Rowid', 'Timestamp', 'Anonymized Vehicle number', 'Vehicle type']].to_csv(
+            f"{staging_dir}/csv_data.csv", index=False)
+
+    def extract_data_from_tsv():
+        df = pd.read_csv(f"{staging_dir}/tollplaza-data.tsv", sep='\t')
+        df[['Number of axles', 'Tollplaza id', 'Tollplaza code']].to_csv(
+            f"{staging_dir}/tsv_data.csv", index=False)
+
+    def extract_data_from_fixed_width():
+        column_specs = [(0, 10), (10, 20)]
+        df = pd.read_fwf(f"{staging_dir}/payment-data.txt", colspecs=column_specs, header=None)
+        df.columns = ['Type of Payment code', 'Vehicle Code']
+        df.to_csv(f"{staging_dir}/fixed_width_data.csv", index=False)
+
+    def consolidate_data():
+        csv_data = pd.read_csv(f"{staging_dir}/csv_data.csv")
+        tsv_data = pd.read_csv(f"{staging_dir}/tsv_data.csv")
+        fixed_width_data = pd.read_csv(f"{staging_dir}/fixed_width_data.csv")
+        final_data = pd.concat([csv_data, tsv_data, fixed_width_data], axis=1)
+        final_data.to_csv(f"{staging_dir}/extracted_data.csv", index=False)
+
+    def transform_data():
+        df = pd.read_csv(f"{staging_dir}/extracted_data.csv")
+        df['Vehicle type'] = df['Vehicle type'].str.upper()
+        df.to_csv(f"{staging_dir}/transformed_data.csv", index=False)
+
+    def load_to_mariadb():
+        conn = mysql.connector.connect(
+            host='localhost',
+            user='your_user',
+            password='your_password',
+            database='traffic_db'
+        )
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS traffic_data (
+                Rowid INT,
+                Timestamp VARCHAR(255),
+                Anonymized_Vehicle_number VARCHAR(255),
+                Vehicle_type VARCHAR(255),
+                Number_of_axles INT,
+                Tollplaza_id VARCHAR(255),
+                Tollplaza_code VARCHAR(255),
+                Type_of_Payment_code VARCHAR(255),
+                Vehicle_Code VARCHAR(255)
+            )
+        """)
+        conn.commit()
+
+        df = pd.read_csv(f"{staging_dir}/transformed_data.csv")
+        for _, row in df.iterrows():
+            cursor.execute("""
+                INSERT INTO traffic_data VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, tuple(row))
+        conn.commit()
+        conn.close()
+
+    # Define tasks
+    task_download = PythonOperator(
+        task_id='download_dataset',
+        python_callable=download_dataset,
+    )
+
+    task_untar = PythonOperator(
+        task_id='untar_dataset',
+        python_callable=untar_dataset,
+    )
+
+    task_extract_csv = PythonOperator(
+        task_id='extract_data_from_csv',
+        python_callable=extract_data_from_csv,
+    )
+
+    task_extract_tsv = PythonOperator(
+        task_id='extract_data_from_tsv',
+        python_callable=extract_data_from_tsv,
+    )
+
+    task_extract_fixed_width = PythonOperator(
+        task_id='extract_data_from_fixed_width',
+        python_callable=extract_data_from_fixed_width,
+    )
+
+    task_consolidate = PythonOperator(
+        task_id='consolidate_data',
+        python_callable=consolidate_data,
+    )
+
+    task_transform = PythonOperator(
+        task_id='transform_data',
+        python_callable=transform_data,
+    )
+
+    task_load = PythonOperator(
+        task_id='load_to_mariadb',
+        python_callable=load_to_mariadb,
+    )
+
+    # Set task dependencies
+    task_download >> task_untar >> [task_extract_csv, task_extract_tsv, task_extract_fixed_width] >> task_consolidate >> task_transform >> task_load
+
+```
+
+
+## Results
+
+By running the `ETL_toll_data.py` DAG script, I achieved the following:
+
+- Successfully extracted and transformed data from multiple formats.
+- Consolidated the data into a standardized structure.
+- Loaded the transformed data into MariaDB for further analysis.
+
+Would you like me to further enhance this section with code snippets or diagrams?
+
 
