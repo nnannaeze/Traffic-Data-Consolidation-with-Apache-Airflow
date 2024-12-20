@@ -116,7 +116,7 @@ graph TD
 
 ## Step-by-Step Implementation
 
-## File Setup
+### File Setup
 
 
 I began by creating a staging folder and granting it access so it can temporarily hold intermediate and final outputs during the ETL process. this was achieved by the following command 
@@ -131,13 +131,13 @@ touch ETL_toll_pyhton_data.py
 ```
 This script serves as the backbone of the pipeline, orchestrating tasks for extracting, transforming, and loading the data. 
 
-## Data Extraction
+### Data Extraction
 
-### Overview
+#### Overview
 The extraction process involved handling three different file formats: CSV, TSV, and fixed-width files. Each format required a unique approach to read and extract relevant fields.
 Here i needed to see the shape of the downloaded data, study it and deduced the fact that the data in all the tables have no Headers and are of 4 categories. This gave me an insgight about the characteristics of the data and the best apprach at extracting it.
 
-### Implementation Details
+#### Implementation Details
 
 1. **Downloading the Dataset**
    I created a Python function, `download_dataset`, to fetch the dataset from the given URL and save it to the staging directory.
@@ -153,9 +153,9 @@ Here i needed to see the shape of the downloaded data, study it and deduced the 
    - **From TSV:** With the `extract_data_from_tsv` function, I extracted Number of axles, Tollplaza id, and Tollplaza code from `tollplaza-data.tsv`. These were saved to `tsv_data.csv`.
    - **From Fixed-Width File:** The `extract_data_from_fixed_width` function handled `payment-data.txt`, extracting Type of Payment code and Vehicle Code into `fixed_width_data.csv`.
 
-## Data Transformation
+### Data Transformation
 
-### Consolidation
+#### Consolidation
 Using the `consolidate_data` function, I combined the extracted data into a single file, `extracted_data.csv`. The consolidated file contained fields in the following order:
 
 - Rowid
@@ -168,14 +168,14 @@ Using the `consolidate_data` function, I combined the extracted data into a sing
 - Type of Payment code
 - Vehicle Code
 
-### Transformation
+#### Transformation
 The `transform_data` function transformed the Vehicle type field to uppercase for uniformity and saved the result as `transformed_data.csv` in the staging directory.
 
 ## Data Loading
 
 To complete the pipeline, I implemented a `load_data_to_mariadb` function to load the final `transformed_data.csv` into the MariaDB database. The database, `traffic_db`, had a table structure defined to align with the fields in the consolidated data.
 
-## DAG Script
+### DAG Script
 
 The entire ETL process was managed through an Apache Airflow DAG. Each Python function was assigned as a task in the DAG. The pipeline ensured that each task executed in the proper sequence:
 
@@ -188,7 +188,7 @@ The entire ETL process was managed through an Apache Airflow DAG. Each Python fu
 
 Dependencies were explicitly set in the DAG to enforce the correct execution order, ensuring data consistency and integrity throughout the pipeline.
 
-### ETL Airflow DAG Script
+#### ETL Airflow DAG Script
 
 The DAG script for this project automates the extraction, transformation, and loading of traffic data from multiple formats into a consolidated dataset. Below is the detailed script:
 
@@ -334,6 +334,81 @@ with DAG(
     task_download >> task_untar >> [task_extract_csv, task_extract_tsv, task_extract_fixed_width] >> task_consolidate >> task_transform >> task_load
 
 ```
+## Challenges and Solutions
+
+Throughout the development of this ETL pipeline, several challenges arose, primarily related to missing dependencies, file path issues, and Airflow task scheduling. Below are the challenges faced, the steps taken to enter the Airflow environment, and how the issues were resolved:
+
+### Entering the Airflow Environment
+Before resolving any issues, it was crucial to work within the Airflow virtual environment to ensure that all commands and configurations were executed in the correct context. The Airflow environment was activated using the following commands:
+```bash
+source /root/airflow_venv/bin/activate
+```
+Once inside the environment, all subsequent commands and solutions were executed.
+
+### Challenges and Solutions
+
+#### Missing Module Errors (e.g., `pandas` and `mysql-connector-python`)  
+During the execution of the pipeline script, errors related to missing Python libraries were encountered. For example, the `ModuleNotFoundError` was raised for `pandas` and `mysql-connector-python`.
+
+**Solution:**  
+To resolve this, the missing libraries were installed within the virtual environment using the following commands:  
+```bash
+pip install pandas
+pip install mysql-connector-python
+pip install mariadb
+```
+After these installations, the script was able to proceed without errors.
+#### Incorrect File Path for the Airflow DAG  
+The Airflow UI initially did not display the DAG because the script was located outside the `/root/airflow/dags/` directory.
+
+**Solution:**  
+The script was relocated to the correct directory using the following commands:  
+```bash
+rm /root/airflow/dags/ETL_toll_pyhton_data.py  # Remove incorrect file
+mv /root/ETL_toll_pyhton_data.py /root/airflow/dags/  # Move file to correct directory
+```
+After relocating the file, the DAG appeared in the Airflow UI as expected.
+
+### 6. Testing and Validation  
+
+#### Testing the Pipeline in Apache Airflow  
+To ensure that the Airflow pipeline operated correctly, the following steps were performed:  
+
+1. **Environment Check:**  
+   We entered the Airflow virtual environment to verify all dependencies and configurations were intact.  
+   ```bash
+   source airflow_venv/bin/activate
+   ```
+2. **Listing Tasks:**
+   The DAG's tasks were listed to confirm that all task definitions were correctly registered:
+   ```bash
+   airflow tasks list ETL_toll_data_pipeline
+   ```
+   ### Output
+   ```
+   consolidate_data
+   download_dataset
+   extract_data_from_csv
+   extract_data_from_fixed_width
+   extract_data_from_tsv
+   load_to_mariadb
+   transform_data
+   untar_dataset
+   ```
+
+3. **Airflow Scheduler Validation:**
+   After starting the scheduler, I verified it was running and processing DAGs:
+   ```bash
+   airflow scheduler
+   ```
+4. **Airflow Webserver Validation:**
+   After starting the webserver, I verified it was running and processing DAGs:
+   ```bash
+   airflow webserver -p 8080
+   ```
+5. **Running the DAG:**
+   Triggered the DAG from the UI and monitored the execution of each task.
+
 
 
 ## Results
