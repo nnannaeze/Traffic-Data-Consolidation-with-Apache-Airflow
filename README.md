@@ -410,28 +410,28 @@ To ensure that the Airflow pipeline operated correctly, the following steps were
    transform_data
    untar_dataset
    ```
-   ![img](B1.PNG)
+   ![img](b1.PNG)
 
 3. **Airflow Scheduler Validation:**
    After starting the scheduler, I verified it was running and processing DAGs:
    ```bash
    airflow scheduler
    ```
-   ![img](B2.PNG)
+   ![img](b2.PNG)
    
 5. **Airflow Webserver Validation:**
    After starting the webserver, I verified it was running and processing DAGs:
    ```bash
    airflow webserver -p 8080
    ```
-   ![img](B3.PNG)
+   ![img](b3.PNG)
    
 6. **Running the DAG:**
    Triggered the DAG from the UI and monitored the execution of each task.
    
-   ![img](UNTITLEDESIGN.PNG)
+
    
-   ![img](B5.PNG)
+   ![img](b5.PNG)
 
 
 ## Results
