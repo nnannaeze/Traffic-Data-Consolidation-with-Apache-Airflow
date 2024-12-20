@@ -199,7 +199,7 @@ from datetime import datetime
 import os
 import pandas as pd
 import tarfile
-import mysql.connector
+import mariadb
 
 # Define the paths
 source_url = "https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBM-DB0250EN-SkillsNetwork/labs/Final%20Assignment/tolldata.tgz"
@@ -231,14 +231,30 @@ with DAG(
             tar.extractall(path=staging_dir)
 
     def extract_data_from_csv():
-        df = pd.read_csv(f"{staging_dir}/vehicle-data.csv")
+        # Define column names based on the actual data structure
+        column_names = ['Rowid', 'Timestamp', 'Anonymized Vehicle number', 'Vehicle type', 'Integer Field', 'Identifier']
+        
+        # Load the data with the specified column names
+        df = pd.read_csv(f"{staging_dir}/vehicle-data.csv", header=None, names=column_names)
+        
+        # Select the required columns
         df[['Rowid', 'Timestamp', 'Anonymized Vehicle number', 'Vehicle type']].to_csv(
             f"{staging_dir}/csv_data.csv", index=False)
 
+
+
     def extract_data_from_tsv():
-        df = pd.read_csv(f"{staging_dir}/tollplaza-data.tsv", sep='\t')
-        df[['Number of axles', 'Tollplaza id', 'Tollplaza code']].to_csv(
+        # Define column names based on the actual data structure
+        column_names = ['Rowid', 'Timestamp', 'Anonymized Vehicle number', 'Vehicle type', 
+                        'Integer Field', 'Tollplaza ID', 'Tollplaza Code']
+        
+        # Load the data with the specified column names
+        df = pd.read_csv(f"{staging_dir}/tollplaza-data.tsv", sep='\t', header=None, names=column_names)
+        
+        # Select the required columns
+        df[['Tollplaza ID', 'Tollplaza Code', 'Integer Field']].to_csv(
             f"{staging_dir}/tsv_data.csv", index=False)
+
 
     def extract_data_from_fixed_width():
         column_specs = [(0, 10), (10, 20)]
@@ -259,14 +275,14 @@ with DAG(
         df.to_csv(f"{staging_dir}/transformed_data.csv", index=False)
 
     def load_to_mariadb():
-        conn = mysql.connector.connect(
+        conn = mariadb.connect(
             host='localhost',
-            user='your_user',
-            password='your_password',
+            user='root',
+            password='nnannaeze@77',
             database='traffic_db'
         )
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(""" 
             CREATE TABLE IF NOT EXISTS traffic_data (
                 Rowid INT,
                 Timestamp VARCHAR(255),
@@ -283,7 +299,7 @@ with DAG(
 
         df = pd.read_csv(f"{staging_dir}/transformed_data.csv")
         for _, row in df.iterrows():
-            cursor.execute("""
+            cursor.execute(""" 
                 INSERT INTO traffic_data VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, tuple(row))
         conn.commit()
@@ -332,7 +348,6 @@ with DAG(
 
     # Set task dependencies
     task_download >> task_untar >> [task_extract_csv, task_extract_tsv, task_extract_fixed_width] >> task_consolidate >> task_transform >> task_load
-
 ```
 ## Challenges and Solutions
 
@@ -395,20 +410,28 @@ To ensure that the Airflow pipeline operated correctly, the following steps were
    transform_data
    untar_dataset
    ```
+   ![img](B1.PNG)
 
 3. **Airflow Scheduler Validation:**
    After starting the scheduler, I verified it was running and processing DAGs:
    ```bash
    airflow scheduler
    ```
-4. **Airflow Webserver Validation:**
+   ![img](B2.PNG)
+   
+5. **Airflow Webserver Validation:**
    After starting the webserver, I verified it was running and processing DAGs:
    ```bash
    airflow webserver -p 8080
    ```
-5. **Running the DAG:**
+   ![img](B3.PNG)
+   
+6. **Running the DAG:**
    Triggered the DAG from the UI and monitored the execution of each task.
-
+   
+   ![img](UNTITLEDESIGN.PNG)
+   
+   ![img](B5.PNG)
 
 
 ## Results
